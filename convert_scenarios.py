@@ -127,6 +127,8 @@ if __name__ == '__main__':
             html = open(html_path).read()
             soup = BeautifulSoup(html, 'lxml')
             wikidot = soup_to_wikidot(soup)
+
+            wikidot += f'\n++ Credits\n{title} was written by TBD for the 2023 Shotgun Scenario contest.\nSource: {url}'
             with open(f'scenarios/wikidot/{name}.md', 'w') as wikidot_file:
                 wikidot_file.write(wikidot)
 
