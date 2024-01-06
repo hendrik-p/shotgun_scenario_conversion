@@ -1,3 +1,4 @@
+import argparse
 import re
 
 import requests
@@ -11,7 +12,13 @@ def download_google_doc_html(url):
         return str(response.text)
     print(f'Failed to download scenario from {url}')
 
-def get_scenarios(html):
+def download_scenario(url, out_path):
+    scenario_html = download_google_doc_html(url)
+    scenario_html = BeautifulSoup(scenario_html, 'lxml').prettify()
+    with open(out_path, 'w') as scenario_file:
+        scenario_file.write(scenario_html)
+
+def parse_contest_doc(html):
     scenarios = []
     soup = BeautifulSoup(html, 'lxml')
     scenario_list = soup.html.body.ol
@@ -22,30 +29,45 @@ def get_scenarios(html):
         link = link_span.find('a')
         title = link.text
         url = link['href']
+        url = url.split('?q=')[1].split('?')[0]
+        author = 'TBD'
         teaser = teaser_span.text.strip()
         if ' - ' in teaser:
-            teaser = teaser.split(' - ')[1].strip()
-        scenario = (title, url, teaser)
+            splitted = teaser.split(' - ')
+            author_match = re.match('(by )?(.*)', splitted[0])
+            author = author_match.group(2)
+            teaser = splitted[1]
+        scenario = (title, url, author, teaser)
         scenarios.append(scenario)
     return scenarios
 
-if __name__ == '__main__':
-    contest_doc_url = 'https://docs.google.com/document/d/1yLsMjxHVLNgw63phSgnsEkx_UJa7R5dBjT3hXb_dK_0/edit'
-
+def get_scenario_list_from_contest_doc(contest_doc_url):
     contest_doc_html = download_google_doc_html(contest_doc_url)
+    scenarios = parse_contest_doc(contest_doc_html)
+    return scenarios
 
-    scenarios = get_scenarios(contest_doc_html)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--contest-doc')
+    parser.add_argument('--scenario')
+    parser.add_argument('--output-path')
+    parser.add_argument('--scenario-tsv-path')
+    args = parser.parse_args()
 
-    name_pattern = re.compile('[\W]+')
-    with open('scenarios.tsv', 'w') as tsv_file:
-        for title, url, teaser in scenarios:
-            name = title.lower().replace(' ', '_')
-            name = name_pattern.sub('', name)
-            print(f'Downloading scenario {name}')
-            scenario_html = download_google_doc_html(url)
-            scenario_html = BeautifulSoup(scenario_html, 'lxml').prettify()
-            with open(f'scenarios/html/{name}.html', 'w') as scenario_file:
-                scenario_file.write(scenario_html)
-            line = f'{name}\t{title}\t{url}\t{teaser}\n'
-            tsv_file.write(line)
+    if args.contest_doc:
+        scenarios = get_scenario_list_from_contest_doc(args.contest_doc)
+        name_pattern = re.compile('[\W]+')
+        scenario_tsv_path = 'scenarios.tsv'
+        if args.scenario_tsv_path:
+            scenario_tsv_path = args.scenario_tsv_path
+        with open(scenario_tsv_path, 'w') as tsv_file:
+            for title, url, author, teaser in scenarios:
+                name = title.lower().replace(' ', '_')
+                name = name_pattern.sub('', name)
+                print(f'Downloading scenario {name}')
+                download_scenario(url, f'{args.output_path}/{name}.html')
+                line = f'{name}\t{title}\t{url}\t{author}\t{teaser}\n'
+                tsv_file.write(line)
+    elif args.scenario:
+        download_scenario(args.scenario, args.output_path)
 
