@@ -1,6 +1,5 @@
-import os
 import re
-import glob
+import argparse
 import logging
 
 import cssutils
@@ -62,8 +61,10 @@ def soup_to_wikidot(soup):
         a.replace_with(text)
 
     for img in soup.find_all('img'):
-        url = img['src']
-        text = f'[[image {url}]]'
+        text = ''
+        if 'src' in img.attrs:
+            url = img['src']
+            text = f'[[image {url}]]'
         img.replace_with(text)
 
     for span in soup.find_all('span'):
@@ -115,20 +116,27 @@ def soup_to_wikidot(soup):
     return wikidot
 
 if __name__ == '__main__':
-    with open('scenarios.tsv') as scenario_list_file:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('tsv_file')
+    parser.add_argument('html_dir')
+    parser.add_argument('output_dir')
+    args = parser.parse_args()
+
+    with open(args.tsv_file) as scenario_list_file:
         for line in scenario_list_file:
             fields = line.strip().split('\t')
             name = fields[0]
             title = fields[1]
             url = fields[2]
-            teaser = fields[3]
+            author = fields[3]
+            teaser = fields[4]
             print(f'Converting {name}')
-            html_path = f'scenarios/html/{name}.html'
+            html_path = f'{args.html_dir}/{name}.html'
             html = open(html_path).read()
             soup = BeautifulSoup(html, 'lxml')
             wikidot = soup_to_wikidot(soup)
 
-            wikidot += f'\n++ Credits\n{title} was written by TBD for the 2023 Shotgun Scenario contest.\nSource: {url}'
-            with open(f'scenarios/wikidot/{name}.md', 'w') as wikidot_file:
+            wikidot += f'\n++ Credits\n{title} was written by {author} for the 2023 Shotgun Scenario contest.\nSource: {url}'
+            with open(f'{args.output_dir}/{name}.wd', 'w') as wikidot_file:
                 wikidot_file.write(wikidot)
 
