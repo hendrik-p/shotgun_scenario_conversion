@@ -4,11 +4,6 @@ import logging
 
 import cssutils
 from bs4 import BeautifulSoup
-from markdownify import MarkdownConverter
-
-def convert_to_markdown(soup):
-    markdown = MarkdownConverter().convert_soup(soup)
-    return markdown
 
 def extract_css_styles(soup):
     cssutils.log.setLevel(logging.CRITICAL)
@@ -43,15 +38,26 @@ def replace_newline(text):
     text = re.sub(r'\s([,.;?!])', r'\1', text) # remove space before punctuation
     text = re.sub(r'\(\s*', '(', text) # remove space after opening parenthesis
     text = re.sub(r'\s*\)', ')', text) # remove space before opening parenthesis
+    text = text.strip()
     return text
+
+def highlight_text(text, markup):
+    stripped_text = text.strip()
+    leading_spaces = text[:len(text) - len(text.lstrip())]
+    trailing_spaces = text[len(text.rstrip()):]
+    out = f'{leading_spaces}{markup}{stripped_text}{markup}{trailing_spaces}'
+    return out
 
 def soup_to_wikidot(soup):
     css_classes = extract_css_styles(soup)
     soup = soup.body
+
+    # handle headers
     for header in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
         level = int(header.name[1])
-        header.replace_with('+' * level + ' ' + header.get_text().strip())
+        header.replace_with('+' * (level + 1) + ' ' + header.get_text().strip() + '\n')
 
+    # handle links
     for a in soup.find_all('a'):
         if not 'href' in a.attrs:
             continue
@@ -60,6 +66,7 @@ def soup_to_wikidot(soup):
         text = f'[[[{url} | {text}]]]'
         a.replace_with(text)
 
+    # handle images
     for img in soup.find_all('img'):
         text = ''
         if 'src' in img.attrs:
@@ -67,40 +74,48 @@ def soup_to_wikidot(soup):
             text = f'[[image {url}]]'
         img.replace_with(text)
 
+    # handle stylized text
     for span in soup.find_all('span'):
-        text = span.get_text().strip()
+        text = span.get_text()
         if not text:
             continue
         classes = set()
         if 'class' in span.attrs:
             classes = set(span['class'])
         if css_classes['bold'] & classes:
-            text = '**' + text + '**'
+            text = highlight_text(text, '**')
         if css_classes['italic'] & classes:
-            text = '//' + text + '//'
+            text = highlight_text(text, '//')
         span.replace_with(text)
 
+    # handle unordered lists
     for ul in soup.find_all('ul'):
         text = ''
         for li in ul.find_all('li'):
             text += '* ' + replace_newline(li.get_text()) + '\n'
         ul.replace_with(text)
 
+    # handle ordered lists
     for ol in soup.find_all('ol'):
         text = ''
         for li in ol.find_all('li'):
             text += '# ' + replace_newline(li.get_text()) + '\n'
         ol.replace_with(text)
 
+
     for p in soup.find_all('p'):
-        text = p.get_text()
-        text = replace_newline(text)
-        text += '\n'
+        classes = set(p['class'])
+        text = p.get_text().strip()
+        text = replace_newline(text) + '\n\n'
+        if 'title' in classes:
+            text = '+ ' + text
         p.replace_with(text)
 
+    # handle horizontal rules/page breaks
     for hr in soup.find_all('hr'):
         hr.replace_with('----')
 
+    # handle tables
     for table in soup.find_all('table'):
         text = ''
         for tr in table.find_all('tr'):
@@ -111,32 +126,30 @@ def soup_to_wikidot(soup):
         table.replace_with(text)
 
     wikidot = soup.get_text()
+    # clean up
     wikidot = re.sub(r'^\s*$', '', wikidot, flags=re.MULTILINE)
     wikidot = re.sub(r'\n\n\n*', '\n\n', wikidot)
     return wikidot
 
+def append_credits(wikidot, title, author, year, url):
+    wikidot += f'\n++ Credits\n{title} was written by {author} for the {year} Shotgun Scenario contest.\nSource: {url}'
+    return wikidot
+
+def convert_html(html_path, out_path, credits_data=None):
+    html = open(html_path).read()
+    soup = BeautifulSoup(html, 'lxml')
+    wikidot = soup_to_wikidot(soup)
+    if credits_data is not None:
+        title, author, year, url = credits_data
+        wikidot = append_credits(wikidot, title, author, year, url)
+    with open(out_path, 'w') as wikidot_file:
+        wikidot_file.write(wikidot)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('tsv_file')
-    parser.add_argument('html_dir')
-    parser.add_argument('output_dir')
+    parser.add_argument('html_file')
+    parser.add_argument('out_file')
     args = parser.parse_args()
 
-    with open(args.tsv_file) as scenario_list_file:
-        for line in scenario_list_file:
-            fields = line.strip().split('\t')
-            name = fields[0]
-            title = fields[1]
-            url = fields[2]
-            author = fields[3]
-            teaser = fields[4]
-            print(f'Converting {name}')
-            html_path = f'{args.html_dir}/{name}.html'
-            html = open(html_path).read()
-            soup = BeautifulSoup(html, 'lxml')
-            wikidot = soup_to_wikidot(soup)
-
-            wikidot += f'\n++ Credits\n{title} was written by {author} for the 2023 Shotgun Scenario contest.\nSource: {url}'
-            with open(f'{args.output_dir}/{name}.wd', 'w') as wikidot_file:
-                wikidot_file.write(wikidot)
+    convert_html(args.html_file, args.out_file)
 

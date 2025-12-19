@@ -14,7 +14,6 @@ def download_google_doc_html(url):
 
 def download_scenario(url, out_path):
     scenario_html = download_google_doc_html(url)
-    scenario_html = BeautifulSoup(scenario_html, 'lxml').prettify()
     with open(out_path, 'w') as scenario_file:
         scenario_file.write(scenario_html)
 
