@@ -22,5 +22,5 @@ if __name__ == '__main__':
             print(f'Converting {name}')
             html_path = f'{args.html_dir}/{name}.html'
             out_path = f'{args.output_dir}/{name}.wd'
-            convert_html(html_path, out_path, credits_data=credits_data)
+            convert_html(html_path, out_path, credits_data=credits_data, img_prefix=name)
 

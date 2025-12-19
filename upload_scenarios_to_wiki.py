@@ -1,3 +1,5 @@
+import os
+import glob
 import json
 import time
 import argparse
@@ -18,7 +20,8 @@ def load_scenarios(tsv_path, markdown_dir):
         title = fields[2]
         scenario_path = f'{markdown_dir}/{basename}.wd'
         scenario_text = open(scenario_path).read()
-        scenarios.append((link, title, scenario_text))
+        img_paths = glob.glob(f'{markdown_dir}/{basename}_*.png')
+        scenarios.append((link, title, scenario_text, img_paths))
     return scenarios
 
 if __name__ == '__main__':
@@ -64,7 +67,7 @@ if __name__ == '__main__':
     sign_in_btn.click()
     driver.switch_to.window(handles[0])
 
-    for link, title, scenario_text in scenarios:
+    for link, title, scenario_text, img_paths in scenarios:
         print(link)
         driver.get(link)
         element_present = EC.presence_of_element_located((By.ID, 'create-it-now-link'))
@@ -82,5 +85,28 @@ if __name__ == '__main__':
         text_area.send_keys(scenario_text)
         save_btn = driver.find_element(By.ID, 'edit-save-button')
         save_btn.click()
-        time.sleep(1)
+        time.sleep(5)
+
+        for img_path in img_paths:
+            img_path = os.path.abspath(img_path)
+            print(f'uploading image {img_path}')
+
+            driver.refresh()
+            element_present = EC.presence_of_element_located((By.ID, 'files-button'))
+            WebDriverWait(driver, 10).until(element_present)
+            files_link = driver.find_element(By.ID, 'files-button')
+            files_link.click()
+            element_present = EC.presence_of_element_located((By.ID, 'show-upload-button'))
+            WebDriverWait(driver, 10).until(element_present)
+            upload_link = driver.find_element(By.ID, 'show-upload-button')
+            upload_link.click()
+            element_present = EC.presence_of_element_located((By.ID, 'upload-userfile'))
+            WebDriverWait(driver, 10).until(element_present)
+            file_input = driver.find_element(By.ID, 'upload-userfile')
+            file_input.send_keys(img_path)
+            upload_btn = driver.find_element(By.XPATH, '//input[@type="button" and @value="Upload"]')
+            upload_btn.click()
+            time.sleep(1)
+            WebDriverWait(driver, 60).until(EC.invisibility_of_element_located((By.ID, 'odialog-container')))
+            time.sleep(1)
 

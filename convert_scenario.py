@@ -1,4 +1,6 @@
+import os
 import re
+import base64
 import argparse
 import logging
 
@@ -48,7 +50,7 @@ def highlight_text(text, markup):
     out = f'{leading_spaces}{markup}{stripped_text}{markup}{trailing_spaces}'
     return out
 
-def soup_to_wikidot(soup):
+def soup_to_wikidot(soup, img_prefix=''):
     css_classes = extract_css_styles(soup)
     soup = soup.body
 
@@ -67,11 +69,18 @@ def soup_to_wikidot(soup):
         a.replace_with(text)
 
     # handle images
-    for img in soup.find_all('img'):
+    images = []
+    for i, img in enumerate(soup.find_all('img')):
         text = ''
         if 'src' in img.attrs:
             url = img['src']
-            text = f'[[image {url}]]'
+            if url.startswith('data'):
+                _, encoded = url.split(',', 1)
+                img_data = base64.b64decode(encoded)
+                img_name = f'{img_prefix}_{i}.png'
+                images.append((img_name, img_data))
+                url = img_name
+            text = f'[[image {url} size="medium"]]'
         img.replace_with(text)
 
     # handle stylized text
@@ -129,21 +138,27 @@ def soup_to_wikidot(soup):
     # clean up
     wikidot = re.sub(r'^\s*$', '', wikidot, flags=re.MULTILINE)
     wikidot = re.sub(r'\n\n\n*', '\n\n', wikidot)
-    return wikidot
+    return wikidot, images
 
 def append_credits(wikidot, title, author, year, url):
     wikidot += f'\n++ Credits\n{title} was written by {author} for the {year} Shotgun Scenario contest.\nSource: {url}'
     return wikidot
 
-def convert_html(html_path, out_path, credits_data=None):
+def convert_html(html_path, out_path, credits_data=None, img_prefix=''):
     html = open(html_path).read()
     soup = BeautifulSoup(html, 'lxml')
-    wikidot = soup_to_wikidot(soup)
+    wikidot, images = soup_to_wikidot(soup, img_prefix=img_prefix)
     if credits_data is not None:
         title, author, year, url = credits_data
         wikidot = append_credits(wikidot, title, author, year, url)
     with open(out_path, 'w') as wikidot_file:
         wikidot_file.write(wikidot)
+    if images:
+        out_dir = os.path.dirname(out_path)
+        for img_name, img_data in images:
+            img_path = f'{out_dir}/{img_name}'
+            with open(img_path, 'wb') as img_file:
+                img_file.write(img_data)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
