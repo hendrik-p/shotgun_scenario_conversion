@@ -8,6 +8,8 @@ python download_scenarios.py --contest-doc <contest-doc-url> --output-path <outp
 ```
 All scenarios will be download in HTML format to the specified output directory.
 Additionally, a TSV file is created, containing metadata for each scenario (ID, title, URL, author, teaser).
+Sometimes the contest document is incorrectly parsed, due to inconsistent formatting.
+This can lead to mistakes in the metadata. It is recommended to inspect the metadata file and fix such issues manually.
 
 You can also download just a single scenario:
 ```
