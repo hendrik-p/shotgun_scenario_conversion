@@ -1,0 +1,6 @@
+{
+    "username": "username",
+    "password": "password",
+    "firefox_bin": "/usr/bin/firefox",
+    "gecko_bin": "/home/hendrik/private/src/shotgun_scenario_conversion/geckodriver"
+}
